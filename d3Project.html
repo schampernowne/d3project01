@@ -1,0 +1,254 @@
+<html>
+<head>
+
+<script src='https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js'></script>
+<script src='https://d3js.org/d3.v4.min.js'></script>
+
+</head>
+<body>
+
+
+
+<style>
+
+
+
+.radSol{
+  background:red;
+}
+
+.radArea{
+  background:green;
+}
+
+.radLin{
+  background:yellow
+}
+
+.circles{
+  color:black;
+  font-size:29
+}
+
+div#container {
+  height: 200px;
+  width: 1000px;
+  border:2px solid #000;
+  overflow: scroll;
+ }
+ 
+ div#dropDown{
+	position:absolute;
+	top: 100;
+	left: 1050;
+ }
+ 
+ div#bottomText{
+ position:absolute;
+ top: 150;
+ left: 1050;
+ }
+ 
+
+
+</style>
+
+<div
+id = 'title'
+<p>
+Childhood Obesity Rates by Year or Country
+</p>
+</div>
+
+<script>
+
+var r = 30;
+
+/*var x = d3.scaleLinear()
+    .range([0, r]);*/
+	
+var svg = d3.select('body')
+	.append('div')
+	.attr('id','container')
+	.append('svg')
+	.attr('width','10000')
+	.attr('height','200')
+	.attr('class','radsol')
+	.append('g')
+	.attr('stroke-width','2');
+
+var iterate = 0;
+var globalData;
+var circ = 0.00;
+var yearSelected = '';
+ // These are the maps for the fields I want to build menus for
+var CountryMap = new Map();
+var YearMap = new Map();
+
+//if iteration needed
+function type(d) { 
+iterate++;
+return d 
+}
+
+
+//function to move circles to the front
+d3.selection.prototype.moveToFront = function() {
+  return this.each(function() {
+    this.parentNode.appendChild(this);
+  });
+};
+
+//declare circle drawing function
+function drawCircles(data, displayfield){	
+	circ = 50.00;
+	//get rid of last circles
+	d3.selectAll('circle').remove();
+	
+	//draw circles biggest to smallest by mean or ordered by year
+	svg.selectAll('.circles').data(data)
+	.enter()
+	.append('circle')
+	.attr('r', function(d){
+	return (+d.mean)*100.00;
+	})
+	.attr('cx',function(d,i){
+		circ+=2*((+d.mean)*100); 
+		return circ - ((+d.mean)*100);
+	}) 
+	.attr('cy','100')
+	.attr('stroke','blue')
+	.attr('fill','white')
+	.on('mouseenter', function(d){
+	
+	//expand circle
+		d3.select(this).moveToFront();
+		//expand circle
+		d3.select(this)
+		.attr('r',75)
+		//.transition()
+		//.duration(1000)
+	
+	
+	//add text
+		d3.select('g')
+		.append('text')
+		.text( d[displayfield])
+		.attr('y',85)
+		.attr('x', +($(this).attr('cx')) - 65)
+		.attr('pointer-events', 'none')
+		
+		d3.select('g')
+		.append('text')
+		.text( 'mean: ' + d.mean )
+		.attr('y',100)
+		.attr('x', +($(this).attr('cx')) - 65)
+		.attr('pointer-events', 'none')
+		
+	})
+	.on('mouseleave', function(d){
+	//get rid of expansion content
+		d3.select(this)
+		.attr('r', function(d){
+			return (+d.mean)*100;
+		})
+		.transition()
+		.duration(1000)                                                       
+	//remove text
+		d3.select('#container').selectAll('text').remove()
+	})
+	
+	d3.select('svg')
+	.attr('width',Math.max(circ+50,1000))
+ }
+ 
+
+ 
+// This adds a key to a map, if it is new
+function BuildMap(map, key, properties) {
+    if (!map.has(key)) {
+        var objval = { 'value': map.size };
+        if (properties)
+            objval = Object.assign(objval, properties);
+        map.set(key, objval);
+    }
+}
+// This updates the maps with any new keys
+function MapBuilder(d) {
+    BuildMap(CountryMap, d.location_name);
+    BuildMap(YearMap, d.year);
+    d.value = +d.age_start; // coerce to number
+    return d;
+}
+ 
+// This appends a menu to a selected DOM object. The items in the menu are the keys of the map.
+// When an item is selected from the menu the data is filtered to that value in the field 'fieldname' and sorted on 'sortfield'
+function BuildMenu(div, map, fieldname, sortfield, displayfield) {
+    // Build an array of menu items
+    var items = Array.from(map);
+ 
+    // Append the menu item
+    var select = div
+	.append('select');
+	
+    var s1 = select.selectAll('option');
+    var s2 = s1.data(items);
+    s2.enter()
+        .append('option')
+        .attr('value', function (d) { return d[0] })
+        .text(function (d) { return d[0] })
+    select
+        .on('change', function (y) {
+			
+				
+            //set item clicked
+            var itemselected = d3.select(this).property('value');
+            // select the specified data
+            var filteredGlobalData = globalData.filter(function (d) { return d[fieldname] == itemselected; });
+            // sort
+            var sortedfiltereddata = filteredGlobalData.sort(function (a, b) { return b[sortfield] - a[sortfield] });
+            //draw circles for just that data  
+            drawCircles(filteredGlobalData,displayfield);
+			
+			if(sortfield == 'year'){
+				var dataTitle = itemselected + ' 1990-2013';
+			}
+			else{
+				var dataTitle = itemselected + ' for each country and region ordered by mean';
+			}
+			//add text describing the data displayed
+			d3.select('#dataTitle')
+				.text(dataTitle);
+        });
+}
+
+
+d3.csv('average.csv', MapBuilder, function(error,data){
+		
+	globalData = data;
+
+//create drop downs	
+	var select = d3.select('body')
+		.append('div')
+		.attr('id','dropDown')
+		
+	var bottomText = d3.select('body')
+		.append('div')
+		.attr('id', 'bottomText')
+		.append('Text')
+		.attr('id','dataTitle')
+		
+		
+	BuildMenu(select,YearMap,'year','mean','location_name');
+	BuildMenu(select,CountryMap,'location_name','year','year');
+		
+				
+
+});
+
+
+  </script>
+
+
+</body>
+</html>
